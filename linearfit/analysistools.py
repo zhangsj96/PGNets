@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.interpolate import UnivariateSpline
 
 
 def get_St0(hr, sigmad, amax, sigmagGI):
@@ -243,6 +244,116 @@ def measure_widths(gaprad, ringrad, radbins, radprofile, innerlimit, outerlimit)
     ringwidth = radbins2[ringindex:outerlimit*10][np.argmin(np.abs(interpprofile[ringindex:10*outerlimit]-meanintensity))]-rmean
     return gapwidth, rmean
 
+
+def Tmidr(rAU, Lstar_Lsun=1., phi=0.02):
+    """
+    calculate midplane temperature
+    """
+    au = 1.496e+11
+    Lsun = 3.828e26
+    sigmaSB = 5.670367e-8
+    Lstar = Lstar_Lsun * Lsun
+    r = rAU * au
+    Tmid = (phi*Lstar/(8.*np.pi*r**2*sigmaSB))**(0.25)
+    return Tmid
+
+def calculate_hr(rgap, Lstar, Mstar, phi=0.02):
+    """
+    calculate h/r
+    rgap: gap's radius in au
+    Lstar: stellar luminosity in Lsun
+    Mstar: stellar mass in Msun
+    phi:  the flaring angle
+    """
+    mmw = 2.35
+    m_H = 1.6733e-27 # in kg
+    Msun = 1.989e30 # kg
+    k   = 1.380649e-23 # SI
+    G   = 6.6743e-11   # SI
+    au  = 149597870700.0 # m
+    
+    T = Tmidr(rgap, Lstar, phi)
+    Cs  = np.sqrt(k*T/ (mmw*m_H))
+    v_k = np.sqrt(G*(Mstar*Msun)/ (rgap*au))
+    Omega_k = v_k / (rgap*au)
+    hr  = Cs/v_k
+    return hr
+
+def calculate_sigmagGI(rgap, Lstar, Mstar, phi=0.02):
+    """
+    calculate SigmagGI
+    rgap: gap's radius in au
+    Lstar: stellar luminosity in Lsun
+    Mstar: stellar mass in Msun
+    phi:  the flaring angle
+    """
+    mmw = 2.35
+    m_H = 1.6733e-27 # in kg
+    Msun = 1.989e30 # kg
+    k   = 1.380649e-23 # SI
+    G   = 6.6743e-11   # SI
+    au  = 149597870700.0 # m
+    
+    T = Tmidr(rgap, Lstar, phi)
+    Cs  = np.sqrt(k*T/ (mmw*m_H))
+    v_k = np.sqrt(G*(Mstar*Msun)/ (rgap*au))
+    Omega_k = v_k / (rgap*au)
+    sigmagGI = Cs*Omega_k/ (np.pi*G) / 10 # 1/10 to convert to cgs
+    return sigmagGI
+
+def Bnu(T, nu=240e9):
+    from scipy.constants.constants import c, h, k
+    # in unit W*sr^-1*m^-2*Hz^-1
+    return 2*h*nu**3/c**2 * 1./(np.exp(h*nu/(k*T)) - 1)
+
+def BnuJyperSr(T, nu=240e9):
+    # in unit Jy/Sr
+    return Bnu(T, nu) * 1e26
+
+def getSigma_A(theta_maj, theta_min):
+    "Major and minor beam in arcsec"
+    theta_maj = theta_maj / 3600. /(180./np.pi) 
+    theta_min = theta_min / 3600. /(180./np.pi) 
+    Sigma_A = np.pi*theta_maj*theta_min / (4. * np.log(2.))
+    return Sigma_A
+    
+def BnuJyperBeam(T, Sigma_A, nu=240e9):
+        # in unit Jy/beam
+    return BnuJyperSr(T) * Sigma_A
+
+def tau_r(rAU, intens, params):
+    """
+    intens: intensity in mJy/beam
+    params: [Lstar/Lsun: central star luminosity, 
+             phi: the factor accounting for flaring angle, 
+             theta_maj: beam major axis FWHM arcsec, 
+             theta_min: beam minor axis FWHM arcsec, 
+             nu:  observation frequency (Hz)]
+    """
+    Lstar_Lsun, phi, theta_maj, theta_min, nu = params
+    T = Tmidr(rAU, Lstar_Lsun, phi)
+    Sigma_A = getSigma_A(theta_maj, theta_min)
+    JyperBeam = BnuJyperBeam(T, Sigma_A, nu)
+    oneMinusExpMinusTau = intens / JyperBeam
+    tau = -np.log(1. - oneMinusExpMinusTau)
+    return tau
+
+def sigmadgap(r, sigma_d, rgap, left_end=1.1, right_end=2.0):
+    """
+    calculate the average dust mass around the gap
+    r:      radial grids
+    sigmad: dust surface density profile
+    rgap :  position of the gap
+    left_end:  the lower bound for the integration in [r_p]
+    right_end: the upper end for the intergration  in [r_p]
+    The right_end needs to tune to a smaller value if
+    it's larger than the disk's outer edge. Emission might
+    be negtive there.
+    """
+    sigma_dr2pir = UnivariateSpline(r, 2.*np.pi*r*sigma_d, s=0)
+    ave_sigma = sigma_dr2pir.integral(left_end*rgap, right_end*rgap) \
+    / (np.pi* ((right_end*rgap)**2 - (left_end*rgap)**2))
+    return ave_sigma
 
 
 
