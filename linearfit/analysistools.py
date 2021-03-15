@@ -42,6 +42,8 @@ def get_sigmag_DSD1(hr, sigmad):
     return 0 to 6. They represent
     0.1, 0.3, 1, 3, 10, 30, 100
     
+    This function is a simplified version of table 18.
+    
     """
     
     hrmodels = np.array([0.05, 0.07, 0.1])
@@ -107,6 +109,7 @@ def get_sigmag_DSD2(hr, sigmad):
     if amax = 1cm
     
     # (0.1, 0.3), 1, 3, 10, 30, 100
+    This function is a simplified version of table 18.
     
     """
     
@@ -214,3 +217,32 @@ def get_Mp(Delta, idxSt, Mstar, hr, alpha):
     print ("q = {:1.1e} Me/M*".format(q / Me_Msun))    
     print ("Mp = {:1.1e} Mj".format(Mp))
     return Mp
+
+
+def measure_widths(gaprad, ringrad, radbins, radprofile, innerlimit, outerlimit):
+    """
+    gaprad:  gap's radius 
+    ringrad: ring's radius 
+    radbins: radial grids 
+    radprofile: radial profile (e.g., intensity)
+    innerlimit:  the inner radius that is analyzed
+    outerlimit: the outer radius that is analyzed
+    adapted from Jane Huang, DSHARP II, 2018
+    
+    return rout-rin, rout
+    """
+    radbins2 = np.arange(0.5, np.max(radbins), 0.1)
+    interpprofile = np.interp(radbins2, radbins, radprofile)
+    gapindex = np.argmin(np.abs(radbins2-gaprad))
+    ringindex = np.argmin(np.abs(radbins2-ringrad))
+    gapintensity = interpprofile[gapindex]
+    ringintensity = interpprofile[ringindex]
+    meanintensity = 0.5*(gapintensity+ringintensity)
+    rmean = radbins2[np.argmin(np.abs(interpprofile[gapindex:ringindex]-meanintensity))+gapindex]
+    gapwidth = rmean-radbins2[10*innerlimit:gapindex][np.argmin(np.abs(interpprofile[10*innerlimit:gapindex]-meanintensity))]
+    ringwidth = radbins2[ringindex:outerlimit*10][np.argmin(np.abs(interpprofile[ringindex:10*outerlimit]-meanintensity))]-rmean
+    return gapwidth, rmean
+
+
+
+
