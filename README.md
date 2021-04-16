@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/346921325.svg)](https://zenodo.org/badge/latestdoi/346921325)
+
 # PGNets
 This repository contains CNN methods to estimate planet mass from protoplanetary disk gaps.
 
